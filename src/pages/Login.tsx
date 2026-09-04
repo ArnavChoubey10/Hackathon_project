@@ -3,6 +3,7 @@ import { ApiError } from "../server/api";
 import { useSession, useToast } from "../state";
 import { BrandMark } from "../layout";
 import { Button, Icon } from "../ui";
+import { downloadProjectZip, projectFileCount } from "../download";
 
 const DEMO = [
   { role: "Admin", email: "admin@college.edu", tone: "bg-pine-600" },
@@ -25,6 +26,19 @@ export default function Login() {
   const [password, setPassword] = useState("demo123");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zipping, setZipping] = useState(false);
+
+  const getZip = async () => {
+    setZipping(true);
+    try {
+      const n = await downloadProjectZip();
+      push("success", `campuscore-erp.zip downloaded — ${n} files. Unzip, then run npm install and npm run dev.`);
+    } catch {
+      push("error", "Could not build the zip file. Please try again.");
+    } finally {
+      setZipping(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +147,16 @@ export default function Login() {
               className="mt-2 w-full text-center font-mono text-[10px] uppercase tracking-[0.15em] text-faint transition-colors hover:text-pine-600">
               more: student1@ / student2@college.edu
             </button>
+          </div>
+
+          <div className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-dashed border-pine-300 bg-pine-50/60 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-semibold text-ink">Take the project with you</p>
+              <p className="num text-[10.5px] text-soft">{projectFileCount()} source files · runs with <span className="font-semibold">npm install → npm run dev</span></p>
+            </div>
+            <Button tone="subtle" size="sm" onClick={() => void getZip()} loading={zipping} className="shrink-0">
+              {!zipping && <Icon name="download" size={13} />} .zip
+            </Button>
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
   GradeBadge, Icon, Loading, Modal, PageHead, RequestBadge, RiskBadge, Stat,
 } from "../ui";
 import { AttendanceMarker, NoticeList } from "./shared";
+import { downloadProjectZip, projectFileCount } from "../download";
 
 export function AdminWorkspace({ page }: { page: string }) {
   switch (page) {
@@ -1021,6 +1022,18 @@ function AdminTimetablePage() {
 function SettingsPage() {
   const { push } = useToast();
   const [busy, setBusy] = useState(false);
+  const [zipping, setZipping] = useState(false);
+  const exportSource = async () => {
+    setZipping(true);
+    try {
+      const n = await downloadProjectZip();
+      push("success", `campuscore-erp.zip ready — ${n} files. Unzip it, then: npm install → npm run dev.`);
+    } catch {
+      push("error", "Could not build the zip file. Please try again.");
+    } finally {
+      setZipping(false);
+    }
+  };
   const reset = async () => {
     setBusy(true);
     try {
