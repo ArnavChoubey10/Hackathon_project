@@ -72,6 +72,14 @@ export interface Notification {
   read: boolean; createdAt: string;
 }
 export interface Activity { id: string; at: string; text: string; actor: string; }
+export interface CurriculumUnit { no: number; title: string; topics: string[]; }
+export interface CourseCurriculum {
+  courseId: string; description: string; prerequisites: string[];
+  objectives: string[]; units: CurriculumUnit[];
+}
+export interface CourseFeedback {
+  courseId: string; avgClarity: number; avgCourse: number; responses: number; // aggregated, neutral statistics
+}
 
 export interface DB {
   v: number; seq: number;
@@ -80,6 +88,7 @@ export interface DB {
   assessments: Assessment[]; exams: Exam[]; timetable: TimetableSlot[];
   assignments: Assignment[]; submissions: Submission[]; fees: FeeRecord[];
   requests: ServiceRequest[]; notifications: Notification[]; activity: Activity[];
+  curricula: CourseCurriculum[]; feedbacks: CourseFeedback[];
 }
 
 /* ---------------- date helpers ---------------- */
@@ -109,6 +118,17 @@ export function lastWeekdays(n: number): string[] {
 
 /* ---------------- persistence ---------------- */
 
+// Storage shim so the same code runs in browsers and in the Node test runner.
+if (typeof (globalThis as { localStorage?: unknown }).localStorage === "undefined") {
+  const mem = new Map<string, string>();
+  (globalThis as Record<string, unknown>).localStorage = {
+    getItem: (k: string) => (mem.has(k) ? mem.get(k)! : null),
+    setItem: (k: string, v: string) => { mem.set(k, String(v)); },
+    removeItem: (k: string) => { mem.delete(k); },
+    clear: () => { mem.clear(); },
+  };
+}
+
 const LS_KEY = "campuscore.db.v1";
 let cache: DB | null = null;
 
@@ -118,7 +138,13 @@ export function loadDB(): DB {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as DB;
-      if (parsed && parsed.v === 1) { cache = parsed; return parsed; }
+      if (parsed && parsed.v === 1) {
+        // Additive migration: tables introduced by the AI Coach layer.
+        if (!parsed.curricula) parsed.curricula = seedCurricula();
+        if (!parsed.feedbacks) parsed.feedbacks = seedFeedbacks();
+        cache = parsed;
+        return parsed;
+      }
     }
   } catch { /* corrupted → reseed */ }
   cache = buildSeed();
@@ -156,6 +182,110 @@ function mulberry32(a: number) {
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/* ---- curriculum & feedback seed (synthetic demo content) ---- */
+
+export function seedCurricula(): CourseCurriculum[] {
+  const u = (no: number, title: string, topics: string[]): CurriculumUnit => ({ no, title, topics });
+  return [
+    {
+      courseId: "C1", description: "Design and analysis of fundamental data structures and algorithms with complexity reasoning.",
+      prerequisites: ["Programming in C"],
+      objectives: ["Reason about time and space complexity", "Select the right structure for a problem", "Implement classic graph and tree algorithms"],
+      units: [
+        u(1, "Complexity & Linear Structures", ["Asymptotic notation", "Arrays", "Linked lists"]),
+        u(2, "Stacks, Queues & Recursion", ["ADTs", "Applications", "Divide and conquer"]),
+        u(3, "Trees & BSTs", ["Binary trees", "Traversals", "AVL rotations"]),
+        u(4, "Heaps & Hashing", ["Priority queues", "Hash functions", "Collision handling"]),
+        u(5, "Graphs", ["BFS/DFS", "Shortest paths", "MST"]),
+      ],
+    },
+    {
+      courseId: "C2", description: "Relational database theory, modelling, SQL and transaction processing.",
+      prerequisites: ["Programming in C", "Set theory basics"],
+      objectives: ["Model data with ER diagrams", "Write correct SQL", "Normalize schemas to 3NF"],
+      units: [
+        u(1, "Data Modelling", ["ER model", "Cardinality", "Weak entities"]),
+        u(2, "Relational Model & SQL", ["Relational algebra", "DDL/DML", "Joins & subqueries"]),
+        u(3, "Normalization", ["Functional dependencies", "1NF–BCNF", "Decomposition"]),
+        u(4, "Transactions", ["ACID", "Schedules", "Concurrency control"]),
+        u(5, "Indexing & Storage", ["B+ trees", "Query plans", "File organization"]),
+      ],
+    },
+    {
+      courseId: "C3", description: "Operating system concepts: processes, scheduling, synchronization, memory and storage.",
+      prerequisites: ["Data Structures & Algorithms"],
+      objectives: ["Explain process lifecycle and scheduling", "Solve classic synchronization problems", "Analyse paging and deadlock conditions"],
+      units: [
+        u(1, "Processes & Threads", ["PCB", "Context switching", "IPC"]),
+        u(2, "CPU Scheduling", ["FCFS/SJF/RR", "Priority", "Multilevel queues"]),
+        u(3, "Synchronization", ["Critical sections", "Semaphores", "Monitors"]),
+        u(4, "Deadlocks", ["Conditions", "Banker's algorithm", "Recovery"]),
+        u(5, "Memory Management", ["Paging", "Segmentation", "Virtual memory", "Page replacement"]),
+      ],
+    },
+    {
+      courseId: "C4", description: "Layered network architecture from physical links to application protocols.",
+      prerequisites: ["Probability & Statistics (parallel)"],
+      objectives: ["Map protocols to OSI/TCP-IP layers", "Trace packet flow end to end", "Compute addressing and subnetting"],
+      units: [
+        u(1, "Foundations", ["OSI & TCP/IP", "Encapsulation", "Performance metrics"]),
+        u(2, "Data Link Layer", ["Framing", "Error detection", "MAC & Ethernet"]),
+        u(3, "Network Layer", ["IPv4 addressing", "Subnetting", "Routing basics"]),
+        u(4, "Transport Layer", ["UDP vs TCP", "Flow control", "Congestion control"]),
+        u(5, "Application Layer", ["DNS", "HTTP", "Email protocols"]),
+      ],
+    },
+    {
+      courseId: "C5", description: "Probability theory and statistical inference for engineers.",
+      prerequisites: ["Class XII Mathematics"],
+      objectives: ["Compute probabilities from axioms", "Work with common distributions", "Interpret hypothesis tests"],
+      units: [
+        u(1, "Probability Axioms", ["Sample spaces", "Conditional probability", "Bayes theorem"]),
+        u(2, "Random Variables", ["PMF/PDF", "CDF", "Expectation & variance"]),
+        u(3, "Distributions", ["Binomial", "Poisson", "Normal"]),
+        u(4, "Joint Distributions", ["Independence", "Covariance", "CLT"]),
+        u(5, "Inference", ["Estimation", "Confidence intervals", "Hypothesis testing"]),
+      ],
+    },
+    {
+      courseId: "C6", description: "Hands-on database laboratory aligned with the DBMS theory course.",
+      prerequisites: ["Database Management Systems (parallel)"],
+      objectives: ["Write production-quality SQL", "Design and normalize a schema", "Build a small data-driven application"],
+      units: [
+        u(1, "SQL Fundamentals", ["DDL", "DML", "Constraints"]),
+        u(2, "Advanced Queries", ["Joins", "Aggregation", "Views"]),
+        u(3, "Schema Design Lab", ["ER to tables", "Normalization practice"]),
+        u(4, "Procedural SQL", ["Functions", "Triggers", "Cursors"]),
+        u(5, "Mini Project", ["End-to-end data app", "Indexing & explain plans"]),
+      ],
+    },
+    {
+      courseId: "C7", description: "Python programming applied to data engineering tasks.",
+      prerequisites: ["None"],
+      objectives: ["Write idiomatic Python", "Process structured data files", "Automate small data pipelines"],
+      units: [
+        u(1, "Language Core", ["Syntax", "Collections", "Functions"]),
+        u(2, "Data Handling", ["CSV/JSON", "Comprehensions", "Error handling"]),
+        u(3, "OOP & Modules", ["Classes", "Packages", "Testing basics"]),
+        u(4, "Mini Pipelines", ["ETL script", "Logging", "CLI tools"]),
+      ],
+    },
+  ];
+}
+
+export function seedFeedbacks(): CourseFeedback[] {
+  // Aggregated, anonymized statistics only (demo data).
+  return [
+    { courseId: "C1", avgClarity: 4.3, avgCourse: 4.2, responses: 41 },
+    { courseId: "C2", avgClarity: 4.1, avgCourse: 4.0, responses: 39 },
+    { courseId: "C3", avgClarity: 3.7, avgCourse: 3.6, responses: 40 },
+    { courseId: "C4", avgClarity: 4.0, avgCourse: 3.9, responses: 37 },
+    { courseId: "C5", avgClarity: 3.9, avgCourse: 3.8, responses: 35 },
+    { courseId: "C6", avgClarity: 4.4, avgCourse: 4.5, responses: 33 },
+    { courseId: "C7", avgClarity: 4.2, avgCourse: 4.3, responses: 30 },
+  ];
+}
 
 export function buildSeed(): DB {
   const rng = mulberry32(20260214);
@@ -399,5 +529,6 @@ export function buildSeed(): DB {
     users, departments, faculty, students, courses, enrollments, attendance,
     assessments, exams, timetable, assignments, submissions, fees, requests,
     notifications, activity,
+    curricula: seedCurricula(), feedbacks: seedFeedbacks(),
   };
 }

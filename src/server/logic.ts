@@ -6,8 +6,8 @@
    ========================================================================= */
 
 import type {
-  Assessment, AttendanceRisk, AttendanceStatus, Course, DB, Difficulty,
-  FeeStatus, Student, Trend,
+  Assessment, AttendanceRisk, AttendanceStatus, Course, CourseCurriculum,
+  CourseFeedback, DB, Difficulty, FeeStatus, Student, Trend,
 } from "./db";
 import { addDaysISO, todayISO } from "./db";
 
@@ -106,6 +106,104 @@ export function performanceLabel(diff: number): "ABOVE_AVERAGE" | "AROUND_AVERAG
   return "AROUND_AVERAGE";
 }
 
+/* ---------------- class-level statistics (real data only) ---------------- */
+
+/** Share of class whose average percentage is at/above the passing mark. */
+export function calculatePassPercentage(pcts: number[]): number | null {
+  if (pcts.length === 0) return null;
+  return round1((100 * pcts.filter((p) => p >= PASSING_PCT).length) / pcts.length);
+}
+
+/** Percentile of myAvg among peer averages; null when fewer than 3 data points. */
+export function calculatePercentile(myAvg: number, peerAvgs: number[]): number | null {
+  if (peerAvgs.length < 3) return null; // INSUFFICIENT_DATA
+  const below = peerAvgs.filter((v) => v < myAvg).length;
+  return Math.min(100, Math.round((100 * below) / (peerAvgs.length - 1)));
+}
+
+/* ---------------- exam proximity ---------------- */
+
+export interface ExamProximity { daysLeft: number; urgency: "IMMINENT" | "NEAR" | "SCHEDULED"; }
+
+export function calculateExamProximity(examDate: string, today = todayISO()): ExamProximity {
+  const ms = new Date(examDate + "T12:00:00").getTime() - new Date(today + "T12:00:00").getTime();
+  const daysLeft = Math.max(0, Math.round(ms / 86_400_000));
+  return { daysLeft, urgency: daysLeft <= 3 ? "IMMINENT" : daysLeft <= 7 ? "NEAR" : "SCHEDULED" };
+}
+
+/* ---------------- transparent academic priority engine ---------------- */
+
+export interface AcademicPriority {
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  score: number;
+  reasons: string[]; // human-readable, generated only from real signals
+}
+
+export function calculateAcademicPriority(input: {
+  average: number | null; difference: number | null; trend: Trend;
+  attendance: AttendanceSummary; difficulty: Difficulty; credits: number; type: string;
+  examDaysLeft: number | null; assignmentDueDays: number | null;
+}): AcademicPriority {
+  const reasons: string[] = [];
+  let score = 0;
+  if (input.average !== null && input.average < PASSING_PCT + 5) {
+    score += 3;
+    reasons.push(`Average score is ${input.average}%, close to the ${PASSING_PCT}% passing line`);
+  }
+  if (input.difference !== null && input.difference <= -8) {
+    score += 3;
+    reasons.push(`Performance is ${Math.abs(input.difference)} points below the class average`);
+  } else if (input.difference !== null && input.difference <= -5) {
+    score += 2;
+    reasons.push(`Performance is ${Math.abs(input.difference)} points below the class average`);
+  }
+  if (input.trend === "DECLINING") {
+    score += 2;
+    reasons.push("Recent assessments are declining");
+  }
+  if (input.attendance.risk === "CRITICAL") {
+    score += 3;
+    reasons.push(`Attendance at ${input.attendance.percentage}% is critical (below ${ATTENDANCE_WARN_AT}%)`);
+  } else if (input.attendance.risk === "WARNING") {
+    score += 2;
+    reasons.push(`Attendance at ${input.attendance.percentage}% is below the ${ATTENDANCE_THRESHOLD}% threshold`);
+  }
+  if (input.examDaysLeft !== null && input.examDaysLeft <= 7) {
+    score += 2;
+    reasons.push(`Upcoming exam in ${input.examDaysLeft} day${input.examDaysLeft === 1 ? "" : "s"}`);
+  }
+  if (input.assignmentDueDays !== null && input.assignmentDueDays <= 3) {
+    score += 1;
+    reasons.push(input.assignmentDueDays < 0
+      ? `An assignment is ${Math.abs(input.assignmentDueDays)} day${input.assignmentDueDays === -1 ? "" : "s"} overdue`
+      : `An assignment is due in ${input.assignmentDueDays} day${input.assignmentDueDays === 1 ? "" : "s"}`);
+  }
+  if (input.difficulty === "HARD") score += 1;
+  if (input.credits >= 4) score += 1;
+  if (input.type === "CORE") score += 1;
+  return { priority: score >= 5 ? "HIGH" : score >= 3 ? "MEDIUM" : "LOW", score, reasons };
+}
+
+/* ---------------- subject identifiers (used by profile + coach) ---------------- */
+
+export function identifyStrongSubjects(courses: CourseProfile[]): CourseProfile[] {
+  return courses.filter((c) =>
+    c.performance.label === "ABOVE_AVERAGE" || (c.performance.average !== null && c.performance.average >= 75));
+}
+export function identifyWeakSubjects(courses: CourseProfile[]): CourseProfile[] {
+  return courses.filter((c) =>
+    c.performance.label === "BELOW_AVERAGE" || (c.performance.average !== null && c.performance.average < 50));
+}
+export function identifyImprovingSubjects(courses: CourseProfile[]): CourseProfile[] {
+  return courses.filter((c) => c.performance.trend === "IMPROVING");
+}
+export function identifyDecliningSubjects(courses: CourseProfile[]): CourseProfile[] {
+  return courses.filter((c) => c.performance.trend === "DECLINING");
+}
+export function identifyAttendanceRisks(courses: CourseProfile[]): CourseProfile[] {
+  return courses.filter((c) => c.attendance.belowThreshold);
+}
+
 /* ---------------- academic profile service ---------------- */
 
 export interface CourseProfile {
@@ -117,6 +215,10 @@ export interface CourseProfile {
     trend: Trend; grade: string | null; points: number | null; label: string;
   };
   assessments: { type: Assessment["type"]; marks: number; maxMarks: number; pct: number; date: string }[];
+  classStats?: { highestClassPct: number | null; lowestClassPct: number | null; passPercentage: number | null; percentile: number | null };
+  curriculum?: CourseCurriculum | null;
+  feedback?: CourseFeedback | null;
+  priority?: AcademicPriority;
 }
 
 export interface Insight { severity: "HIGH" | "MEDIUM" | "LOW" | "GOOD"; text: string; }
@@ -138,6 +240,17 @@ export interface AcademicProfile {
   insights: Insight[];
   actions: ActionItem[];
   generatedAt: string;
+  /* ---- additions consumed by the Academic Coach (all derived from ERP data) ---- */
+  upcomingExams: {
+    id: string; name: string; courseId: string; courseCode: string; courseName: string;
+    date: string; start: string; end: string; venue: string; semester: number;
+    daysLeft: number; urgency: "IMMINENT" | "NEAR" | "SCHEDULED"; syllabusUnits: string[];
+  }[];
+  assignmentTracker: {
+    id: string; title: string; courseId: string; courseCode: string; courseName: string;
+    dueDate: string; daysLeft: number; submitted: boolean; status: "SUBMITTED" | "OVERDUE" | "PENDING";
+  }[];
+  priorities: { courseId: string; courseCode: string; courseName: string; priority: "HIGH" | "MEDIUM" | "LOW"; score: number; reasons: string[] }[];
 }
 
 export function buildStudentProfile(db: DB, studentId: string): AcademicProfile {
@@ -159,11 +272,28 @@ export function buildStudentProfile(db: DB, studentId: string): AcademicProfile 
     const gradePct = fat ? pctOf(fat) : average;
     const g = gradePct !== null ? calculateGrade(gradePct) : null;
     const attRecords = db.attendance.filter((r) => r.courseId === c.id && r.studentId === studentId);
+    // Per-student averages across the class (for highest/lowest/pass%/percentile).
+    const peerAvgs = db.enrollments.filter((e) => e.courseId === c.id)
+      .map((e) => {
+        const ms = db.assessments.filter((a) => a.courseId === c.id && a.studentId === e.studentId);
+        if (ms.length === 0) return null;
+        const p = ms.map(pctOf);
+        return round1(p.reduce((s, v) => s + v, 0) / p.length);
+      })
+      .filter((v): v is number => v !== null);
     return {
       courseId: c.id, courseCode: c.code, courseName: c.name, credits: c.credits,
       type: c.type, difficulty: c.difficulty,
       facultyName: db.faculty.find((f) => f.id === c.facultyId)?.name ?? "—",
       attendance: calculateAttendance(attRecords.map((r) => r.status)),
+      classStats: {
+        highestClassPct: peerAvgs.length ? Math.max(...peerAvgs) : null,
+        lowestClassPct: peerAvgs.length ? Math.min(...peerAvgs) : null,
+        passPercentage: calculatePassPercentage(peerAvgs),
+        percentile: average !== null ? calculatePercentile(average, peerAvgs) : null,
+      },
+      curriculum: db.curricula.find((k) => k.courseId === c.id) ?? null,
+      feedback: db.feedbacks.find((k) => k.courseId === c.id) ?? null,
       performance: {
         average, classAverage, difference,
         trend: calculateTrend(series),
@@ -176,6 +306,46 @@ export function buildStudentProfile(db: DB, studentId: string): AcademicProfile 
 
   const allAtt = db.attendance.filter((r) => r.studentId === studentId);
   const overallAtt = calculateAttendance(allAtt.map((r) => r.status));
+
+  /* ---- upcoming exams with proximity + syllabus units (coach-ready) ---- */
+  const upcomingExams = db.exams
+    .filter((e) => enrolledCourseIds.includes(e.courseId) && e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((e) => {
+      const c = courses.find((x) => x.id === e.courseId)!;
+      const prox = calculateExamProximity(e.date, today);
+      return {
+        ...e, courseCode: c.code, courseName: c.name, ...prox,
+        syllabusUnits: (db.curricula.find((k) => k.courseId === e.courseId)?.units ?? []).map((un) => un.title),
+      };
+    });
+
+  /* ---- assignment tracker (coach-ready) ---- */
+  const assignmentTracker = db.assignments
+    .filter((as) => enrolledCourseIds.includes(as.courseId))
+    .map((as) => {
+      const c = courses.find((x) => x.id === as.courseId)!;
+      const submitted = db.submissions.some((sb) => sb.assignmentId === as.id && sb.studentId === studentId);
+      const daysLeft = Math.round((new Date(as.dueDate + "T12:00:00").getTime() - new Date(today + "T12:00:00").getTime()) / 86_400_000);
+      const status: "SUBMITTED" | "OVERDUE" | "PENDING" = submitted ? "SUBMITTED" : daysLeft < 0 ? "OVERDUE" : "PENDING";
+      return { id: as.id, title: as.title, courseId: as.courseId, courseCode: c.code, courseName: c.name, dueDate: as.dueDate, daysLeft, submitted, status };
+    })
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  /* ---- transparent per-course priorities (score + structured reasons) ---- */
+  for (const cp of courseProfiles) {
+    const ex = upcomingExams.find((e) => e.courseId === cp.courseId);
+    const openDue = assignmentTracker.filter((a) => a.courseId === cp.courseId && !a.submitted).map((a) => a.daysLeft);
+    cp.priority = calculateAcademicPriority({
+      average: cp.performance.average, difference: cp.performance.difference, trend: cp.performance.trend,
+      attendance: cp.attendance, difficulty: cp.difficulty, credits: cp.credits, type: cp.type,
+      examDaysLeft: ex ? ex.daysLeft : null,
+      assignmentDueDays: openDue.length ? Math.min(...openDue) : null,
+    });
+  }
+  const priorities = courseProfiles
+    .map((cp) => ({ courseId: cp.courseId, courseCode: cp.courseCode, courseName: cp.courseName, priority: cp.priority!.priority, score: cp.priority!.score, reasons: cp.priority!.reasons }))
+    .sort((a, b) => b.score - a.score);
 
   // Results = FAT assessments (official end-semester), graded by backend rules.
   const results = courseProfiles
@@ -256,9 +426,6 @@ export function buildStudentProfile(db: DB, studentId: string): AcademicProfile 
   if (overdue.length) insights.push({ severity: "HIGH", text: `${overdue.length} assignment${overdue.length === 1 ? " is" : "s are"} overdue: ${overdue.map((a) => a.title.split("—")[0].trim()).join(", ")}.` });
   else if (dueSoon.length) insights.push({ severity: "LOW", text: `${dueSoon.length} assignment${dueSoon.length === 1 ? "" : "s"} due within 3 days.` });
 
-  const upcomingExams = db.exams
-    .filter((e) => enrolledCourseIds.includes(e.courseId) && e.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date));
   if (upcomingExams.length) {
     const next = upcomingExams[0];
     const cname = courses.find((c) => c.id === next.courseId)?.name ?? next.courseId;
@@ -308,6 +475,9 @@ export function buildStudentProfile(db: DB, studentId: string): AcademicProfile 
     insights,
     actions,
     generatedAt: new Date().toISOString(),
+    upcomingExams,
+    assignmentTracker,
+    priorities,
   };
 }
 

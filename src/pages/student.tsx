@@ -7,6 +7,7 @@ import {
   Icon, Loading, Modal, PageHead, RiskBadge, Spark, Stat, TrendChip,
 } from "../ui";
 import { NoticeList, TimetableGrid } from "./shared";
+import { CoachPage } from "./coach";
 
 export function StudentWorkspace({ page }: { page: string }) {
   switch (page) {
@@ -16,6 +17,7 @@ export function StudentWorkspace({ page }: { page: string }) {
     case "marks": return <MarksPage />;
     case "results": return <ResultsPage />;
     case "performance": return <PerformancePage />;
+    case "coach": return <CoachPage />;
     case "timetable": return <TimetablePage />;
     case "exams": return <ExamsPage />;
     case "assignments": return <AssignmentsPage />;

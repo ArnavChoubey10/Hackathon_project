@@ -39,6 +39,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { key: "marks", label: "Marks", icon: "edit" },
     { key: "results", label: "Results", icon: "award" },
     { key: "performance", label: "Academic Performance", icon: "trend" },
+    { key: "coach", label: "Academic Coach", icon: "spark" },
     { key: "timetable", label: "Timetable", icon: "calendar" },
     { key: "exams", label: "Exam Schedule", icon: "clock" },
     { key: "assignments", label: "Assignments", icon: "file" },

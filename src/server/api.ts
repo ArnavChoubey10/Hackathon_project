@@ -17,6 +17,7 @@ import {
   adminStats, ASSESSMENT_MAX_DEFAULTS, buildStudentProfile, calculateAttendance,
   calculateClassAverage, calculateFee, calculateGrade, calculateTrend, facultyStats, pctOf, round1,
 } from "./logic";
+import { aiChat as aiChatService, getAiConfig, saveAiConfig } from "./ai";
 
 export class ApiError extends Error {
   status: number;
@@ -730,6 +731,30 @@ export const api = {
     const db = loadDB();
     if (!db.students.some((s) => s.id === id)) throw new ApiError(404, "Student not found.");
     return buildStudentProfile(db, id);
+  },
+
+  /* ---------- academic coach (AI layer) ---------- */
+  // POST /api/ai/chat — STUDENT only; identity always derived from the token.
+  async aiChat(message: string, history: { role: "user" | "assistant"; content: string }[] = []) {
+    const { sid } = requireStudent();
+    if (typeof message !== "string" || !message.trim()) throw new ApiError(422, "Message cannot be empty.");
+    const db = loadDB();
+    const profile = buildStudentProfile(db, sid); // backend builds the profile; the AI never touches the DB
+    const turns = Array.isArray(history) ? history.filter((h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string").slice(-6) : [];
+    return aiChatService(profile, message, turns);
+  },
+  async aiConfig() {
+    requireStudent();
+    return { ...getAiConfig(), apiKey: getAiConfig().apiKey ? "••••" + getAiConfig().apiKey.slice(-4) : "" };
+  },
+  async saveAiConfig(cfg: { mode: "local" | "http"; apiKey: string; model: string; baseUrl: string }) {
+    requireStudent();
+    if (cfg.mode !== "local" && cfg.mode !== "http") throw new ApiError(422, "Mode must be 'local' or 'http'.");
+    if (cfg.mode === "http" && cfg.baseUrl && !/^https?:\/\//i.test(cfg.baseUrl)) throw new ApiError(422, "Base URL must start with http(s)://");
+    // An empty apiKey means "keep existing" so masked values never overwrite real keys.
+    const existing = getAiConfig();
+    const merged = { ...cfg, apiKey: cfg.apiKey.startsWith("••••") ? existing.apiKey : cfg.apiKey };
+    return saveAiConfig(merged);
   },
 
   /* ---------- dashboards ---------- */

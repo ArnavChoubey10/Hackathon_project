@@ -40,6 +40,7 @@ const PATHS: Record<string, ReactNode> = {
   db: <><ellipse cx="12" cy="5.5" rx="7.5" ry="3" /><path d="M4.5 5.5v13c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-13" /><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" /></>,
   refresh: <><path d="M4.5 12a7.5 7.5 0 0113-5.2L20 9.5" /><path d="M20 4.5v5h-5M19.5 12a7.5 7.5 0 01-13 5.2L4 14.5" /><path d="M4 19.5v-5h5" /></>,
   send: <><path d="M20.5 3.5L10 14" /><path d="M20.5 3.5L14 20.5l-4-6.5-7-3 17.5-7.5z" /></>,
+  bot: <><rect x="4.5" y="8" width="15" height="11" rx="2.5" /><path d="M12 8V4.5" /><circle cx="12" cy="3.5" r="1" /><circle cx="9" cy="13" r="1.2" /><circle cx="15" cy="13" r="1.2" /><path d="M9 16.5h6" /></>,
   eye: <><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></>,
 };
 
