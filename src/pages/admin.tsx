@@ -5,7 +5,7 @@ import type { CourseType, Difficulty, RequestStatus } from "../server/db";
 import { fmtDate, inr, timeAgo, useApi, useRouter, useToast } from "../state";
 import {
   Badge, BarRow, Button, Card, CardHead, Donut, Empty, ErrorBox, FeeBadge, Field,
-  GradeBadge, Icon, Loading, Modal, PageHead, RequestBadge, RiskBadge, Stat,
+  GradeBadge, Icon, Loading, Modal, PageHead, RequestBadge, RiskBadge, SkeletonRows, Stat,
 } from "../ui";
 import { AttendanceMarker, NoticeList } from "./shared";
 import { downloadProjectZip, projectFileCount } from "../download";
@@ -22,6 +22,9 @@ export function AdminWorkspace({ page }: { page: string }) {
     case "notifications": return <AdminNotificationsPage />;
     case "exams": return <AdminExamsPage />;
     case "timetable": return <AdminTimetablePage />;
+    case "departments": return <DepartmentsPage />;
+    case "programs": return <ProgramsPage />;
+    case "reports": return <ReportsPage />;
     case "settings": return <SettingsPage />;
     default: return <AdminDashboard />;
   }
@@ -1083,6 +1086,249 @@ function SettingsPage() {
           </Button>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/* ================= departments ================= */
+
+function DepartmentsPage() {
+  const { push } = useToast();
+  const { data, loading, error, reload } = useApi(() => api.departments(), []);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      await api.createDepartment({ name, code });
+      push("success", `Department ${code.toUpperCase()} created.`);
+      setName(""); setCode("");
+      reload();
+    } catch (e) {
+      push("error", e instanceof ApiError ? e.message : "Could not create department.");
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (id: string, deptName: string) => {
+    try {
+      await api.deleteDepartment(id);
+      push("success", `Department ${deptName} deleted.`);
+      reload();
+    } catch (e) {
+      push("error", e instanceof ApiError ? e.message : "Could not delete department.");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHead title="Departments" sub="Academic departments referenced by students, faculty and courses" />
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Card pad={false} className="lg:col-span-2">
+          {loading ? <div className="p-4"><SkeletonRows rows={4} /></div>
+            : error ? <div className="p-4"><ErrorBox message={error} onRetry={reload} /></div>
+              : !data || data.length === 0 ? <Empty icon="db" title="No departments yet" sub="Create the first department on the right." />
+                : (
+                  <table className="tbl">
+                    <thead><tr><th>Code</th><th>Department</th><th className="text-right">Action</th></tr></thead>
+                    <tbody>
+                      {data.map((d) => (
+                        <tr key={d.id}>
+                          <td><Badge tone="pine">{d.code}</Badge></td>
+                          <td className="font-medium text-ink">{d.name}</td>
+                          <td className="text-right">
+                            <Button tone="ghost" size="sm" onClick={() => void remove(d.id, d.name)}><Icon name="trash" size={12} /> Delete</Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+        </Card>
+        <Card>
+          <CardHead icon="db" title="Add department" sub="Code must be unique" />
+          <div className="space-y-3">
+            <Field label="Name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Computer Science & Engineering" /></Field>
+            <Field label="Code"><input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="CSE" maxLength={6} /></Field>
+            <Button onClick={() => void create()} loading={busy} disabled={!name.trim() || !code.trim()} className="w-full">
+              <Icon name="check" size={14} /> Create department
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ================= programs ================= */
+
+function ProgramsPage() {
+  const { push } = useToast();
+  const { data, loading, error, reload } = useApi(() => api.programs(), []);
+  const { data: departments } = useApi(() => api.departments(), []);
+  const [name, setName] = useState("");
+  const [level, setLevel] = useState<"UNDERGRADUATE" | "POSTGRADUATE" | "DIPLOMA">("UNDERGRADUATE");
+  const [years, setYears] = useState(4);
+  const [departmentId, setDepartmentId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      await api.createProgram({ name, level, durationYears: years, departmentId: departmentId || null });
+      push("success", `Program ${name} created.`);
+      setName("");
+      reload();
+    } catch (e) {
+      push("error", e instanceof ApiError ? e.message : "Could not create program.");
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (id: string, progName: string) => {
+    try {
+      await api.deleteProgram(id);
+      push("success", `Program ${progName} deleted.`);
+      reload();
+    } catch (e) {
+      push("error", e instanceof ApiError ? e.message : "Could not delete program.");
+    }
+  };
+
+  const levelLabel: Record<string, string> = { UNDERGRADUATE: "Undergraduate", POSTGRADUATE: "Postgraduate", DIPLOMA: "Diploma" };
+
+  return (
+    <div className="space-y-6">
+      <PageHead title="Programs" sub="Degree programs offered by the institution" />
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Card pad={false} className="lg:col-span-2">
+          {loading ? <div className="p-4"><SkeletonRows rows={4} /></div>
+            : error ? <div className="p-4"><ErrorBox message={error} onRetry={reload} /></div>
+              : !data || data.length === 0 ? <Empty icon="cap" title="No programs yet" sub="Create the first program on the right." />
+                : (
+                  <table className="tbl">
+                    <thead><tr><th>Program</th><th>Level</th><th>Duration</th><th>Department</th><th className="text-right">Action</th></tr></thead>
+                    <tbody>
+                      {data.map((p) => (
+                        <tr key={p.id}>
+                          <td className="font-medium text-ink">{p.name}</td>
+                          <td><Badge tone="gray">{levelLabel[p.level] ?? p.level}</Badge></td>
+                          <td className="num">{p.durationYears} years</td>
+                          <td className="text-soft">{departments?.find((d) => d.id === p.departmentId)?.code ?? "—"}</td>
+                          <td className="text-right">
+                            <Button tone="ghost" size="sm" onClick={() => void remove(p.id, p.name)}><Icon name="trash" size={12} /> Delete</Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+        </Card>
+        <Card>
+          <CardHead icon="cap" title="Add program" sub="Degree or diploma track" />
+          <div className="space-y-3">
+            <Field label="Name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="B.Tech" /></Field>
+            <Field label="Level">
+              <select className="input" value={level} onChange={(e) => setLevel(e.target.value as typeof level)}>
+                <option value="UNDERGRADUATE">Undergraduate</option>
+                <option value="POSTGRADUATE">Postgraduate</option>
+                <option value="DIPLOMA">Diploma</option>
+              </select>
+            </Field>
+            <Field label="Duration (years)"><input type="number" min={1} max={6} className="input num" value={years} onChange={(e) => setYears(Number(e.target.value))} /></Field>
+            <Field label="Department (optional)">
+              <select className="input" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                <option value="">— None —</option>
+                {(departments ?? []).map((d) => <option key={d.id} value={d.id}>{d.code} — {d.name}</option>)}
+              </select>
+            </Field>
+            <Button onClick={() => void create()} loading={busy} disabled={!name.trim()} className="w-full">
+              <Icon name="check" size={14} /> Create program
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ================= reports ================= */
+
+function ReportsPage() {
+  const { data, loading, error, reload } = useApi(() => api.adminDashboard(), []);
+
+  return (
+    <div className="space-y-6">
+      <PageHead title="Reports" sub="Institution-wide academic and financial position — computed from live records" />
+      {loading && <Loading label="Compiling reports…" />}
+      {!loading && error && <ErrorBox message={error} onRetry={reload} />}
+      {!loading && !error && data && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
+            <Stat label="Institution attendance" value={data.avgAttendance} suffix="%" icon="check" hint={`${data.below75Count} students below ${ATTENDANCE_THRESHOLD}%`} />
+            <Stat label="Average marks" value={data.avgMarks} suffix="%" icon="award" hint="All assessments, all courses" />
+            <Stat label="Pending requests" value={data.pendingRequests} icon="file" hint="Awaiting admin review" />
+            <div className="card flex items-center gap-3.5 p-4">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-pine-50 text-pine-600"><Icon name="wallet" size={19} /></span>
+              <span className="min-w-0">
+                <span className="block font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint">Fees collected</span>
+                <span className="num block font-display text-[19px] font-bold leading-tight text-ink">{inr(data.feesCollected)}</span>
+                <span className="block truncate text-[10.5px] text-soft">{Math.round((data.feesCollected / Math.max(1, data.feesTotal)) * 100)}% of {inr(data.feesTotal)}</span>
+              </span>
+            </div>
+          </div>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card pad={false}>
+              <CardHead icon="chart" title="Attendance by course" sub="Live from the attendance register" />
+              <div className="space-y-3 p-5 pt-1">
+                {data.courseAttendance.map((c: { id: string; code: string; name: string; percentage: number; risk: string }) => (
+                  <BarRow key={c.id} label={`${c.code} — ${c.name}`} value={c.percentage} tone={c.risk === "CRITICAL" ? "red" : c.risk === "WARNING" ? "gold" : "pine"} />
+                ))}
+              </div>
+            </Card>
+            <Card pad={false}>
+              <CardHead icon="users" title="Students below attendance threshold" sub={`Required: ${ATTENDANCE_THRESHOLD}%`} />
+              {data.below75.length === 0
+                ? <Empty icon="check" title="No students below threshold" sub="Everyone currently meets the attendance requirement." />
+                : (
+                  <table className="tbl">
+                    <thead><tr><th>Roll no</th><th>Student</th><th>Attendance</th><th>Risk</th></tr></thead>
+                    <tbody>
+                      {data.below75.map((s: { id: string; regNo: string; name: string; percentage: number; risk: "SAFE" | "WARNING" | "CRITICAL" }) => (
+                        <tr key={s.id}>
+                          <td className="num text-faint">{s.regNo}</td>
+                          <td className="font-medium text-ink">{s.name}</td>
+                          <td className="num font-semibold">{s.percentage}%</td>
+                          <td><RiskBadge risk={s.risk} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+            </Card>
+          </div>
+          <Card pad={false}>
+            <CardHead icon="wallet" title="Fee collection summary" sub="Current semester" />
+            <div className="grid gap-4 p-5 pt-1 sm:grid-cols-3">
+              <div className="rounded-lg border border-line bg-paper p-4">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-faint">Collected</p>
+                <p className="num mt-1 font-display text-2xl font-bold text-emerald-700">{inr(data.feesCollected)}</p>
+                <p className="mt-1 text-[11px] text-soft">{data.feeStatusCounts.PAID} records fully paid</p>
+              </div>
+              <div className="rounded-lg border border-line bg-paper p-4">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-faint">Outstanding</p>
+                <p className="num mt-1 font-display text-2xl font-bold text-gold-600">{inr(data.feesPending)}</p>
+                <p className="mt-1 text-[11px] text-soft">{data.feeStatusCounts.PARTIAL} partial · {data.feeStatusCounts.PENDING} pending</p>
+              </div>
+              <div className="rounded-lg border border-line bg-paper p-4">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-faint">Assessed total</p>
+                <p className="num mt-1 font-display text-2xl font-bold text-pine-700">{inr(data.feesTotal)}</p>
+                <p className="mt-1 text-[11px] text-soft">Across {data.totalStudents} students</p>
+              </div>
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

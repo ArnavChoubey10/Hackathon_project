@@ -21,6 +21,11 @@ export interface User {
   role: Role; studentId?: string; facultyId?: string;
 }
 export interface Department { id: string; name: string; code: string; }
+export interface Program {
+  id: string; name: string;
+  level: "UNDERGRADUATE" | "POSTGRADUATE" | "DIPLOMA";
+  durationYears: number; departmentId: string | null;
+}
 export interface FacultyProfile {
   id: string; name: string; email: string; phone: string;
   departmentId: string; designation: string; userId?: string;
@@ -83,7 +88,7 @@ export interface CourseFeedback {
 
 export interface DB {
   v: number; seq: number;
-  users: User[]; departments: Department[]; faculty: FacultyProfile[]; students: Student[];
+  users: User[]; departments: Department[]; programs: Program[]; faculty: FacultyProfile[]; students: Student[];
   courses: Course[]; enrollments: Enrollment[]; attendance: AttendanceRecord[];
   assessments: Assessment[]; exams: Exam[]; timetable: TimetableSlot[];
   assignments: Assignment[]; submissions: Submission[]; fees: FeeRecord[];
@@ -139,9 +144,10 @@ export function loadDB(): DB {
     if (raw) {
       const parsed = JSON.parse(raw) as DB;
       if (parsed && parsed.v === 1) {
-        // Additive migration: tables introduced by the AI Coach layer.
+        // Additive migrations (AI Coach layer + programs catalog).
         if (!parsed.curricula) parsed.curricula = seedCurricula();
         if (!parsed.feedbacks) parsed.feedbacks = seedFeedbacks();
+        if (!parsed.programs) parsed.programs = seedPrograms();
         cache = parsed;
         return parsed;
       }
@@ -271,6 +277,14 @@ export function seedCurricula(): CourseCurriculum[] {
         u(4, "Mini Pipelines", ["ETL script", "Logging", "CLI tools"]),
       ],
     },
+  ];
+}
+
+export function seedPrograms(): Program[] {
+  return [
+    { id: "P1", name: "B.Tech", level: "UNDERGRADUATE", durationYears: 4, departmentId: "D1" },
+    { id: "P2", name: "M.Tech", level: "POSTGRADUATE", durationYears: 2, departmentId: "D1" },
+    { id: "P3", name: "B.Sc", level: "UNDERGRADUATE", durationYears: 3, departmentId: "D3" },
   ];
 }
 
@@ -529,6 +543,6 @@ export function buildSeed(): DB {
     users, departments, faculty, students, courses, enrollments, attendance,
     assessments, exams, timetable, assignments, submissions, fees, requests,
     notifications, activity,
-    curricula: seedCurricula(), feedbacks: seedFeedbacks(),
+    curricula: seedCurricula(), feedbacks: seedFeedbacks(), programs: seedPrograms(),
   };
 }

@@ -56,7 +56,7 @@ export function Icon({ name, size = 18, className = "" }: { name: string; size?:
 /* ================= primitives ================= */
 
 const btnTones: Record<string, string> = {
-  primary: "bg-pine-600 text-white hover:bg-pine-700 active:scale-[0.98] shadow-sm",
+  primary: "bg-gold-600 text-white hover:bg-gold-700 active:scale-[0.98] shadow-sm",
   dark: "bg-pine-900 text-pine-50 hover:bg-pine-800 active:scale-[0.98]",
   ghost: "bg-transparent border border-line text-ink hover:border-pine-300 hover:bg-pine-50 active:scale-[0.98]",
   danger: "bg-blush-600 text-white hover:bg-blush-700 active:scale-[0.98]",
@@ -82,8 +82,8 @@ export function Button({
 export function Spinner({ size = 16, light = false }: { size?: number; light?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="animate-spin" aria-label="Loading">
-      <circle cx="12" cy="12" r="9" stroke={light ? "rgba(255,255,255,0.3)" : "#d5ded7"} strokeWidth="3" fill="none" />
-      <path d="M21 12a9 9 0 00-9-9" stroke={light ? "#fff" : "#0e6955"} strokeWidth="3" strokeLinecap="round" fill="none" />
+      <circle cx="12" cy="12" r="9" stroke={light ? "rgba(255,255,255,0.3)" : "#dbe3ee"} strokeWidth="3" fill="none" />
+      <path d="M21 12a9 9 0 00-9-9" stroke={light ? "#fff" : "#b45309"} strokeWidth="3" strokeLinecap="round" fill="none" />
     </svg>
   );
 }
@@ -227,7 +227,7 @@ export function Donut({ pct, size = 116, tone = "pine", label }: { pct: number; 
   const c = 2 * Math.PI * r;
   const clamped = Math.min(100, Math.max(0, pct));
   const off = c - (clamped / 100) * c;
-  const colors = { pine: "#0e6955", gold: "#c77414", red: "#d93654" };
+  const colors = { pine: "#1a365d", gold: "#d97706", red: "#d93654" };
   const [animated, setAnimated] = useState(c);
   useEffect(() => {
     const t = setTimeout(() => setAnimated(off), 60);
@@ -249,7 +249,7 @@ export function Donut({ pct, size = 116, tone = "pine", label }: { pct: number; 
   );
 }
 
-export function Spark({ points, height = 44, tone = "#0e6955" }: { points: number[]; height?: number; tone?: string }) {
+export function Spark({ points, height = 44, tone = "#1a365d" }: { points: number[]; height?: number; tone?: string }) {
   if (points.length < 2) return <div className="flex h-11 items-center text-[11px] text-faint">Not enough data yet</div>;
   const w = 130;
   const min = Math.min(...points) - 4;

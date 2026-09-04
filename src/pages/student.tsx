@@ -635,7 +635,7 @@ function PerformancePage() {
                 </div>
                 {c.performance.grade && <GradeBadge grade={c.performance.grade} />}
               </div>
-              <div className="mt-3"><Spark points={c.assessments.map((a) => a.pct)} height={38} tone={c.performance.trend === "DECLINING" ? "#d93654" : "#0e6955"} /></div>
+              <div className="mt-3"><Spark points={c.assessments.map((a) => a.pct)} height={38} tone={c.performance.trend === "DECLINING" ? "#d93654" : "#1a365d"} /></div>
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <TrendChip trend={c.performance.trend} />
                 <DiffBadge diff={c.performance.difference} />

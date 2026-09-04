@@ -18,6 +18,7 @@ import {
   calculateClassAverage, calculateFee, calculateGrade, calculateTrend, facultyStats, pctOf, round1,
 } from "./logic";
 import { aiChat as aiChatService, getAiConfig, saveAiConfig } from "./ai";
+import { withRemote } from "./remote";
 
 export class ApiError extends Error {
   status: number;
@@ -75,8 +76,10 @@ const publicStudent = (s: Student) => ({
 });
 
 /* ============================ the API surface ============================ */
+/* apiLocal is the in-browser engine (same contracts as the Express backend).
+   The exported `api` transparently routes over HTTP when the backend is up. */
 
-export const api = {
+const apiLocal = {
   /* ---------- auth ---------- */
   async login(email: string, password: string) {
     await latency();
@@ -795,6 +798,51 @@ export const api = {
     requireAuth();
     return loadDB().departments;
   },
+  async createDepartment(data: { name: string; code: string }) {
+    requireRole("ADMIN");
+    await latency();
+    const db = loadDB();
+    if (!data.name.trim() || !data.code.trim()) throw new ApiError(422, "Name and code are required.");
+    if (db.departments.some((d) => d.code.toLowerCase() === data.code.trim().toLowerCase())) throw new ApiError(409, "Department code already exists.");
+    const dept = { id: nextId(db, "D"), name: data.name.trim(), code: data.code.trim().toUpperCase() };
+    db.departments.push(dept);
+    logActivity(db, `Department created — ${dept.name}`, "Admin Office");
+    saveDB(db);
+    return dept;
+  },
+  async deleteDepartment(id: string) {
+    requireRole("ADMIN");
+    await latency();
+    const db = loadDB();
+    const inUse = db.students.some((s) => s.departmentId === id) || db.courses.some((c) => c.departmentId === id) || db.faculty.some((f) => f.departmentId === id);
+    if (inUse) throw new ApiError(409, "Department is in use and cannot be deleted.");
+    db.departments = db.departments.filter((d) => d.id !== id);
+    saveDB(db);
+    return { ok: true };
+  },
+  async programs() {
+    requireAuth();
+    return loadDB().programs;
+  },
+  async createProgram(data: { name: string; level: "UNDERGRADUATE" | "POSTGRADUATE" | "DIPLOMA"; durationYears: number; departmentId: string | null }) {
+    requireRole("ADMIN");
+    await latency();
+    const db = loadDB();
+    if (!data.name.trim() || !["UNDERGRADUATE", "POSTGRADUATE", "DIPLOMA"].includes(data.level)) throw new ApiError(422, "Name and a valid level are required.");
+    const prog = { id: nextId(db, "P"), name: data.name.trim(), level: data.level, durationYears: Number(data.durationYears) || 4, departmentId: data.departmentId ?? null };
+    db.programs.push(prog);
+    logActivity(db, `Program created — ${prog.name}`, "Admin Office");
+    saveDB(db);
+    return prog;
+  },
+  async deleteProgram(id: string) {
+    requireRole("ADMIN");
+    await latency();
+    const db = loadDB();
+    db.programs = db.programs.filter((p) => p.id !== id);
+    saveDB(db);
+    return { ok: true };
+  },
   async resetDemo() {
     await latency();
     resetDB();
@@ -802,6 +850,11 @@ export const api = {
     return { ok: true };
   },
 };
+
+/** Public client — transparently routes over HTTP to the Express/SQLite
+    backend when one is reachable; otherwise uses the in-browser engine. */
+export const api = withRemote(apiLocal);
+export type CampusApi = typeof apiLocal;
 
 function courseWithStats(db: DB, c: Course) {
   const enrolled = db.enrollments.filter((e) => e.courseId === c.id).length;

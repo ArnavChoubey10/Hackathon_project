@@ -11,6 +11,8 @@ export const NAV: Record<Role, NavItem[]> = {
     { key: "dashboard", label: "Dashboard", icon: "dashboard" },
     { key: "students", label: "Students", icon: "users" },
     { key: "faculty", label: "Faculty", icon: "cap" },
+    { key: "departments", label: "Departments", icon: "db" },
+    { key: "programs", label: "Programs", icon: "cap" },
     { key: "courses", label: "Courses", icon: "book" },
     { key: "attendance", label: "Attendance", icon: "check" },
     { key: "results", label: "Results", icon: "award" },
@@ -19,6 +21,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { key: "notifications", label: "Notifications", icon: "bell" },
     { key: "exams", label: "Exam Schedule", icon: "clock" },
     { key: "timetable", label: "Timetable", icon: "calendar" },
+    { key: "reports", label: "Reports", icon: "chart" },
     { key: "settings", label: "Settings", icon: "settings" },
   ],
   FACULTY: [
@@ -29,6 +32,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { key: "marks", label: "Marks Entry", icon: "edit" },
     { key: "assignments", label: "Assignments", icon: "file" },
     { key: "timetable", label: "Timetable", icon: "calendar" },
+    { key: "exams", label: "Exams", icon: "clock" },
     { key: "notifications", label: "Notifications", icon: "bell" },
   ],
   STUDENT: [

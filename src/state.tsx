@@ -3,6 +3,7 @@ import {
   type ReactNode,
 } from "react";
 import { api, ApiError } from "./server/api";
+import { probeRemote } from "./server/remote";
 import type { Role } from "./server/db";
 
 /* ---------------- session ---------------- */
@@ -54,6 +55,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     (async () => {
+      // Detect a running Express/SQLite backend; otherwise use the in-browser engine.
+      await probeRemote();
       if (localStorage.getItem("campuscore.token")) {
         try {
           const me = await api.me();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, ApiError } from "../server/api";
-import { fmtDate, timeAgo, useApi, useRouter, useToast } from "../state";
+import { daysUntil, fmtDate, timeAgo, useApi, useRouter, useToast } from "../state";
 import {
   Badge, Button, Card, CardHead, Donut, Empty, ErrorBox, Field,
   Icon, Loading, Modal, PageHead, RiskBadge, Stat,
@@ -15,6 +15,7 @@ export function FacultyWorkspace({ page }: { page: string }) {
     case "marks": return <FacultyMarksPage />;
     case "assignments": return <FacultyAssignmentsPage />;
     case "timetable": return <FacultyTimetablePage />;
+    case "exams": return <FacultyExamsPage />;
     case "notifications": return <FacultyNotificationsPage />;
     default: return <FacultyDashboard />;
   }
