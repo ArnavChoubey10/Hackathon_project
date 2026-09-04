@@ -1058,6 +1058,17 @@ function SettingsPage() {
             <Icon name="refresh" size={14} /> Reset demo database
           </Button>
         </Card>
+        <Card>
+          <CardHead icon="download" title="Project source" sub="Everything needed to run CampusCore on your machine" />
+          <p className="text-[13px] leading-relaxed text-soft">
+            Downloads the complete project as <span className="num rounded bg-paper px-1.5 py-0.5 text-[11.5px] font-semibold text-ink">campuscore-erp.zip</span> —
+            {" "}{projectFileCount()} source files, config, and docs. Unzip it, run <span className="num rounded bg-paper px-1.5 py-0.5 text-[11.5px] font-semibold text-ink">npm install</span>,
+            then <span className="num rounded bg-paper px-1.5 py-0.5 text-[11.5px] font-semibold text-ink">npm run dev</span>.
+          </p>
+          <Button className="mt-4" onClick={() => void exportSource()} loading={zipping}>
+            <Icon name="download" size={14} /> Download project (.zip)
+          </Button>
+        </Card>
       </div>
     </div>
   );
